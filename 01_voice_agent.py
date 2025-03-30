@@ -20,7 +20,7 @@ from livekit.plugins import deepgram, openai, silero, turn_detector, elevenlabs
 from livekit.plugins import noise_cancellation
 import os
 
-logger = logging.getLogger("basic-agent")
+logger = logging.getLogger("el nombre de tu agente")
 
 load_dotenv(dotenv_path=".env")
 
@@ -28,10 +28,7 @@ load_dotenv(dotenv_path=".env")
 class AgenteValley(Agent):
     def __init__(self) -> None:
         super().__init__(
-            instructions="Tu nombre es Carolina. Interactúas con los usuarios a través de la voz, "
-            "por lo tanto mantén tus respuestas concisas y directas. "
-            "Eres curiosa y amigable, y tienes sentido del humor. "
-            "Hablas en español en todo momento.",
+            instructions="Añade el prompt que quiera que el agente siga",
         )
 
     async def on_enter(self):
@@ -39,8 +36,8 @@ class AgenteValley(Agent):
         # according to its instructions
         self.session.generate_reply(instructions="greet the user and ask about their day")
 
-    # all functions annotated with @function_tool will be passed to the LLM when this
-    # agent is active
+    # todas las funciones anotadas con @function_tool se pasarán al LLM cuando este
+    # agente esté activo
     @function_tool
     async def lookup_weather(
         self,
@@ -49,17 +46,17 @@ class AgenteValley(Agent):
         latitude: str,
         longitude: str,
     ):
-        """Called when the user asks for weather related information.
-        When given a location, please estimate the latitude and longitude of the location and
-        do not ask the user for them.
+        """Se llama cuando el usuario solicita información relacionada con el clima.
+        Cuando se proporciona una ubicación, por favor estima la latitud y longitud de la ubicación y
+        no le pidas al usuario que las proporcione.
 
         Args:
-            location: The location they are asking for
-            latitude: The latitude of the location
-            longitude: The longitude of the location
+            location: La ubicación sobre la que están preguntando
+            latitude: La latitud de la ubicación
+            longitude: La longitud de la ubicación
         """
 
-        logger.info(f"Looking up weather for {location}")
+        logger.info(f"Buscando el tiempo en: {location}")
 
         return {
             "weather": "sunny",
@@ -77,25 +74,15 @@ async def entrypoint(ctx: JobContext):
 
     session = AgentSession(
         vad=ctx.proc.userdata["vad"],
-        # any combination of STT, LLM, TTS, or realtime API can be used
-        llm=openai.LLM(model="gpt-4o-mini", temperature=0.4),
-        stt=deepgram.STT(model="nova-3-general", language="es"),
-        tts=elevenlabs.TTS(voice=elevenlabs.tts.Voice(
-                id=os.getenv("ELEVEN_VOICE_ID"),
-                name="Carolina",
-                category="premade",
-                settings=elevenlabs.tts.VoiceSettings(
-                    stability=0.71,
-                    similarity_boost=0.5,
-                    style=0.0,
-                    use_speaker_boost=True
-                )
-        )),
+        # usa cualquier combinacion de STT, LLM, TTS
+        llm=...,
+        stt=...,
+        tts=...,
         # use LiveKit's turn detection model
         turn_detection=turn_detector.EOUModel(),
     )
 
-    # log metrics as they are emitted, and total usage after session is over
+    # las log metrics se emiten una vez ha terminado la sesión
     usage_collector = metrics.UsageCollector()
 
     @session.on("metrics_collected")
@@ -105,7 +92,7 @@ async def entrypoint(ctx: JobContext):
 
     async def log_usage():
         summary = usage_collector.get_summary()
-        logger.info(f"Usage: {summary}")
+        logger.info(f"Uso: {summary}")
 
     # shutdown callbacks are triggered when the session is over
     ctx.add_shutdown_callback(log_usage)

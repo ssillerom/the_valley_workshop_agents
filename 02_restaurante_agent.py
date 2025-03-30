@@ -13,7 +13,7 @@ from livekit.agents.voice.room_io import RoomInputOptions
 from livekit.plugins import deepgram, openai, silero, elevenlabs, turn_detector, noise_cancellation
 import os
 
-logger = logging.getLogger("restaurant-magalia")
+logger = logging.getLogger("restaurant-el nombre de tu RESTAURANTE")
 logger.setLevel(logging.INFO)
 
 load_dotenv(dotenv_path=".env")
@@ -21,37 +21,37 @@ load_dotenv(dotenv_path=".env")
 RunContext_T = RunContext[UserData]
 
 
-# common functions
+# Funciones comunes para los agentes
 
 
 @function_tool()
 async def update_name(
-    name: Annotated[str, Field(description="The customer's name")],
+    name: Annotated[str, Field(description="El nombre del cliente")],
     context: RunContext_T,
 ) -> str:
-    """Called when the user provides their name.
-    Confirm the spelling with the user before calling the function."""
+    """Se llama cuando el usuario proporciona su nombre.
+    Confirma la ortografía con el usuario antes de llamar a la función."""
     userdata = context.userdata
     userdata.customer_name = name
-    return f"The name is updated to {name}"
+    return f"El nombre ha sido actualizado a {name}"
 
 
 @function_tool()
 async def update_phone(
-    phone: Annotated[str, Field(description="The customer's phone number")],
+    phone: Annotated[str, Field(description="El número de teléfono del cliente")],
     context: RunContext_T,
 ) -> str:
-    """Called when the user provides their phone number.
-    Confirm the spelling with the user before calling the function."""
+    """Se llama cuando el usuario proporciona su número de teléfono.
+    Confirma los dígitos con el usuario antes de llamar a la función."""
     userdata = context.userdata
     userdata.customer_phone = phone
-    return f"The phone number is updated to {phone}"
+    return f"El número de teléfono ha sido actualizado a {phone}"
 
 
 @function_tool()
 async def to_greeter(context: RunContext_T) -> Agent:
-    """Called when user asks any unrelated questions or requests
-    any other services not in your job description."""
+    """Se llama cuando el usuario hace preguntas no relacionadas o solicita
+    otros servicios que no están en su descripción de trabajo."""
     curr_agent: BaseAgent = context.session.current_agent
     return await curr_agent._transfer_to_agent("greeter", context)
 
@@ -59,7 +59,7 @@ async def to_greeter(context: RunContext_T) -> Agent:
 class BaseAgent(Agent):
     async def on_enter(self) -> None:
         agent_name = self.__class__.__name__
-        logger.info(f"entering task {agent_name}")
+        logger.info(f"Entrando en la tarea del agente: {agent_name}")
 
         userdata: UserData = self.session.userdata
         chat_ctx = self.chat_ctx.copy()
@@ -87,7 +87,7 @@ class BaseAgent(Agent):
         next_agent = userdata.agents[name]
         userdata.prev_agent = current_agent
 
-        return next_agent, f"Transferring to {name}."
+        return next_agent, f"Transfiriendo a {name}."
 
     def _truncate_chat_ctx(
         self,
@@ -96,7 +96,17 @@ class BaseAgent(Agent):
         keep_system_message: bool = False,
         keep_function_call: bool = False,
     ) -> list[llm.ChatItem]:
-        """Truncate the chat context to keep the last n messages."""
+        """Trunca el contexto de chat para mantener solo los últimos n mensajes.
+        
+        Args:
+            items: Lista de elementos del chat a truncar.
+            keep_last_n_messages: Número de mensajes más recientes a conservar.
+            keep_system_message: Si se deben mantener los mensajes del sistema.
+            keep_function_call: Si se deben mantener las llamadas a funciones.
+            
+        Returns:
+            Lista truncada de elementos de chat.
+        """
 
         def _valid_item(item: llm.ChatItem) -> bool:
             if not keep_system_message and item.type == "message" and item.role == "system":
@@ -124,82 +134,73 @@ class BaseAgent(Agent):
 
 
 class Greeter(BaseAgent):
+    """
+    Agente de bienvenida para el restaurante.
+
+    Este agente se encarga de dar la bienvenida a los usuarios y redirigirlos
+    a otros agentes según sus necesidades, como hacer una reserva o realizar
+    un pedido para llevar.
+
+    Attributes:
+        menu (str): El menú del restaurante que puede compartir con los usuarios.
+
+    Methods:
+        to_reservation: Transfiere la conversación al agente de reservas cuando
+                       el usuario desea hacer una reserva.
+        to_takeaway: Transfiere la conversación al agente de pedidos para llevar
+                    cuando el usuario desea realizar un pedido.
+    """
     def __init__(self, menu: str) -> None:
         super().__init__(
-            instructions=(
-            f"Eres un amable recepcionista de restaurante. El menú es: {menu}\n"
-            "Tu trabajo es saludar a quien llama y entender si quieren "
-            "hacer una reserva o pedir comida para llevar. Guíalos al agente adecuado usando las herramientas."
+            instructions=("añade prompts de conversación para el agente de bienvenida "
             ),
             llm=openai.LLM(model="gpt-4o-mini", parallel_tool_calls=False),
-            tts=elevenlabs.TTS(voice=elevenlabs.tts.Voice(
-            id=os.getenv("ELEVEN_VOICE_ID"),
-            name="Carolina",
-            category="premade",
-            settings=elevenlabs.tts.VoiceSettings(
-                stability=0.71,
-                similarity_boost=0.5,
-                style=0.0,
-                use_speaker_boost=True
-            )
-        )),
+            tts=elevenlabs.TTS(voice=elevenlabs.tts.Voice(...),
         )
         self.menu = menu
 
     @function_tool()
     async def to_reservation(self, context: RunContext_T) -> Agent:
-        """Called when user wants to make a reservation.
-        This function handles transitioning to the reservation agent
-        who will collect the necessary details like reservation time,
-        customer name and phone number."""
+        """Se llama cuando el usuario quiere hacer una reserva.
+        Esta función gestiona la transición al agente de reservas
+        que recopilará los detalles necesarios como la hora de la reserva,
+        el nombre del cliente y el número de teléfono."""
         return await self._transfer_to_agent("reservation", context)
 
     @function_tool()
     async def to_takeaway(self, context: RunContext_T) -> Agent:
-        """Called when the user wants to place a takeaway order.
-        This includes handling orders for pickup, delivery, or when the user wants to
-        proceed to checkout with their existing order."""
+        """Se llama cuando el usuario quiere hacer un pedido para llevar.
+        Esto incluye gestionar pedidos para recoger, entrega a domicilio, o cuando el usuario
+        quiere proceder al pago con su pedido existente."""
         return await self._transfer_to_agent("takeaway", context)
 
 
 class Reservation(BaseAgent):
     def __init__(self) -> None:
         super().__init__(
-            instructions="Eres un agente de reservas en un restaurante. Tu trabajo es preguntar por "
-            "la hora de la reserva, luego el nombre del cliente, y el número de teléfono. Después "
-            "confirma los detalles de la reserva con el cliente.",
+            instructions="añade prompt de conversación para el agente de reservas",
             tools=[update_name, update_phone, to_greeter],
-            tts=elevenlabs.TTS(voice=elevenlabs.tts.Voice(
-            id=os.getenv("ELEVEN_VOICE_ID"),
-            name="Carolina",
-            category="premade",
-            settings=elevenlabs.tts.VoiceSettings(
-                stability=0.71,
-                similarity_boost=0.5,
-                style=0.0,
-                use_speaker_boost=True
-            )
-        )),
+            tts=elevenlabs.TTS(...),
         )
 
     @function_tool()
     async def update_reservation_time(
         self,
-        time: Annotated[str, Field(description="The reservation time")],
+        time: Annotated[str, Field(description="La hora de la reserva")],
         context: RunContext_T,
     ) -> str:
         userdata = context.userdata
         userdata.reservation_time = time
-        return f"The reservation time is updated to {time}"
+        return f"La hora de la reserva se ha actualizado a {time}"
 
     @function_tool()
     async def confirm_reservation(self, context: RunContext_T) -> str | tuple[Agent, str]:
         userdata = context.userdata
         if not userdata.customer_name or not userdata.customer_phone:
-            return "Please provide your name and phone number first."
+            return "Por favor, proporcione su nombre y número de teléfono primero."
 
         if not userdata.reservation_time:
-            return "Please provide reservation time first."
+            return "Por favor, proporcione la hora de la reserva primero."
 
         return await self._transfer_to_agent("greeter", context)
 
@@ -207,40 +208,27 @@ class Reservation(BaseAgent):
 class Takeaway(BaseAgent):
     def __init__(self, menu: str) -> None:
         super().__init__(
-            instructions=(
-            f"Eres un agente de comida para llevar que toma pedidos de los clientes. "
-            f"Nuestro menú es: {menu}\n"
-            "Aclara peticiones especiales y confirma el pedido con el cliente."
+            instructions=("añade prompt de conversación para el agente de comida para llevar "
             ),
             tools=[to_greeter],
-            tts=elevenlabs.TTS(voice=elevenlabs.tts.Voice(
-            id=os.getenv("ELEVEN_VOICE_ID"),
-            name="Carolina",
-            category="premade",
-            settings=elevenlabs.tts.VoiceSettings(
-                stability=0.71,
-                similarity_boost=0.5,
-                style=0.0,
-                use_speaker_boost=True
-            )
-        )),
+            tts=elevenlabs.TTS(...),
         )
 
     @function_tool()
     async def update_order(
         self,
-        items: Annotated[list[str], Field(description="The items of the full order")],
+        items: Annotated[list[str], Field(description="Los elementos del pedido completo")],
         context: RunContext_T,
     ) -> str:
         userdata = context.userdata
         userdata.order = items
-        return f"The order is updated to {items}"
+        return f"El pedido se ha actualizado a {items}"
 
     @function_tool()
     async def to_checkout(self, context: RunContext_T) -> str | tuple[Agent, str]:
         userdata = context.userdata
         if not userdata.order:
-            return "No takeaway order found. Please make an order first."
+            return "No se ha encontrado ningún pedido para llevar. Por favor, haga un pedido primero."
 
         return await self._transfer_to_agent("checkout", context)
 
@@ -249,61 +237,49 @@ class Checkout(BaseAgent):
     def __init__(self, menu: str) -> None:
         super().__init__(
             instructions=(
-            f"Eres un agente para realizar pagos en un restaurante. El menú es: {menu}\n"
-            "Tu responsabilidad es confirmar el coste total del "
-            "pedido y luego recopilar el nombre del cliente, número de teléfono e información "
-            "de la tarjeta de crédito, incluyendo el número de tarjeta, fecha de caducidad y CVV paso a paso."
+                "añade prompt de conversación para el agente de checkout "
+                "incluyendo la confirmación del importe, la tarjeta de crédito y el pago"
             ),
             tools=[update_name, update_phone, to_greeter],
-            tts=elevenlabs.TTS(voice=elevenlabs.tts.Voice(
-            id=os.getenv("ELEVEN_VOICE_ID"),
-            name="Carolina",
-            category="premade",
-            settings=elevenlabs.tts.VoiceSettings(
-                stability=0.71,
-                similarity_boost=0.5,
-                style=0.0,
-                use_speaker_boost=True
-            )
-            )),
+            tts=elevenlabs.TTS(voice=elevenlabs.tts.Voice(...),
         )
 
     @function_tool()
     async def confirm_expense(
         self,
-        expense: Annotated[float, Field(description="The expense of the order")],
+        expense: Annotated[float, Field(description="El coste del pedido")],
         context: RunContext_T,
     ) -> str:
         userdata = context.userdata
         userdata.expense = expense
-        return f"The expense is confirmed to be {expense}"
+        return f"El coste del pedido es: {expense}"
 
     @function_tool()
     async def update_credit_card(
         self,
-        number: Annotated[str, Field(description="The credit card number")],
-        expiry: Annotated[str, Field(description="The expiry date of the credit card")],
-        cvv: Annotated[str, Field(description="The CVV of the credit card")],
+        number: Annotated[str, Field(description="La tarjeta de crédito")],
+        expiry: Annotated[str, Field(description="Fecha de caducidad de la tarjeta de Crédito")],
+        cvv: Annotated[str, Field(description="CVV de la tarjeta de crédito")],
         context: RunContext_T,
     ) -> str:
         userdata = context.userdata
         userdata.customer_credit_card = number
         userdata.customer_credit_card_expiry = expiry
         userdata.customer_credit_card_cvv = cvv
-        return f"The credit card number is updated to {number}"
+        return f"El número de la tarjeta de crédito ha sido actualizado: {number}"
 
     @function_tool()
     async def confirm_checkout(self, context: RunContext_T) -> str | tuple[Agent, str]:
         userdata = context.userdata
         if not userdata.expense:
-            return "Please confirm the expense first."
+            return "Por favor confirme el importe primero."
 
         if (
             not userdata.customer_credit_card
             or not userdata.customer_credit_card_expiry
             or not userdata.customer_credit_card_cvv
         ):
-            return "Please provide the credit card information first."
+            return "Por favor proporcione la información de la tarjeta de crédito primero."
 
         userdata.checked_out = True
         return await to_greeter(context)
@@ -316,7 +292,8 @@ class Checkout(BaseAgent):
 async def entrypoint(ctx: JobContext):
     await ctx.connect()
 
-    menu = "Pizza: $10, Salad: $5, Ice Cream: $3, Coffee: $2"
+    menu = "INTRODUCE AQUI TU MENÚ DE RESTAURANTE SEPARADO POR COMAS Y CON PRECIO"  # load the menu from a file or database
+    # load the menu from a file or database
     userdata = UserData()
     userdata.agents.update(
         {
@@ -328,19 +305,9 @@ async def entrypoint(ctx: JobContext):
     )
     agent = AgentSession[UserData](
         userdata=userdata,
-        stt=deepgram.STT(model="nova-3-general", language="es"),
-        llm=openai.LLM(model="gpt-4o-mini"),
-        tts=elevenlabs.TTS(voice=elevenlabs.tts.Voice(
-                id=os.getenv("ELEVEN_VOICE_ID"),
-                name="Carolina",
-                category="premade",
-                settings=elevenlabs.tts.VoiceSettings(
-                    stability=0.71,
-                    similarity_boost=0.5,
-                    style=0.0,
-                    use_speaker_boost=True
-                )
-        )),
+        stt=deepgram.STT(#???),
+        llm=openai.LLM(#???),
+        tts=elevenlabs.TTS(#???),
         vad=silero.VAD.load(),
         max_tool_steps=5,
     )
@@ -349,11 +316,11 @@ async def entrypoint(ctx: JobContext):
         agent=userdata.agents["greeter"],
         room=ctx.room,
         room_input_options=RoomInputOptions(
-        noise_cancellation=noise_cancellation.BVC(),
+        # noise_cancellation=noise_cancellation.BVC(), solo usar si tienes linux o macOs
         ),
     )
 
-    await agent.say("Restaurante Magalia, ¿Dígame?")
+    await agent.say("Restaurante TU NOMBRE DE RESTAURANTE, ¿Dígame?") #Mensaje de inicio
 
 
 if __name__ == "__main__":
